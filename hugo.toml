@@ -1,0 +1,31 @@
+baseURL = 'https://example.org/'
+languageCode = 'en-us'
+title = "Infcode's Blog"
+theme = 'PaperMod'
+
+[params]
+  math = true
+  ShowCodeCopyButtons = true
+
+[params.homeInfoParams]
+Title = "Hi there!"
+Content = "Thanks for stopping by! This is where I share programming insights, tech tips, and tricks I’ve found useful along the way. I’ll be posting about coding, tools, and notes for quick reference—both for myself and anyone else who finds them helpful."
+
+[[params.socialIcons]]
+name = "github"
+url = "https://github.com/INFCode"
+
+[[params.socialIcons]]
+name = "zhihu"
+url = "https://www.zhihu.com/people/wu-qi-fei-28"
+
+
+[markup.goldmark.extensions.passthrough]
+enable = true
+
+[markup.goldmark.extensions.passthrough.delimiters]
+block = [['\[', '\]'], ['$$', '$$']]
+inline = [['$', '$']]
+
+[markup.highlight]
+linenos = true
