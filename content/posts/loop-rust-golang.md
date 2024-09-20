@@ -1,7 +1,7 @@
 +++
 title = 'Traps in "for-loop"s: A Deep Dive into Range-Based Loops and Variable Handling'
 date = 2024-07-31T19:53:42-04:00
-draft = true
+draft = false
 +++
 
 Rust and Go are two modern programming languages that have made significant impacts in their respective domains. Rust shines in system programming, with a focus on memory safety without a garbage collector, while Go excels in simplicity and concurrent programming. Despite both being relatively young, these languages have key differences, even in how they handle range-based loops and loop variables.

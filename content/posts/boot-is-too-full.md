@@ -1,7 +1,7 @@
 +++
 title = 'Fix "Partition /boot is too full" Error on Linux'
 date = 2024-05-22T22:53:35-04:00
-draft = true
+draft = false
 +++
 
 ## Saving Space on Your /boot Partition
