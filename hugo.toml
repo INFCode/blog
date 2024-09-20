@@ -2,6 +2,7 @@ baseURL = 'https://example.org/'
 languageCode = 'en-us'
 title = "Infcode's Blog"
 theme = 'PaperMod'
+copyright = "INFCode's Blog © 2024 is licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)"
 
 [params]
   math = true
