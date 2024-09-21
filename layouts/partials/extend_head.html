@@ -1,11 +1,6 @@
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ .Title }}</title>
-
-  {{ if .Param "math" }}
+  <!-- Enable math if set in site settings or front matters -->
+  {{ if or .Site.Params.math .Params.math }}
     {{ partialCached "math.html" . }}
   {{ end }}
-
-  <!-- Other head content, e.g., CSS, metadata, etc. -->
 </head>
