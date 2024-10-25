@@ -6,23 +6,110 @@ draft = true
 
 In C++11, a new system for error handling was introduced: error codes. This system is useful to provide a `errno` compatible mechanism for errors. It is very lightweight compared to exceptions. It also allows passing the error value around as a parameter, extendable for your own error codes. Special mechanisms are provided to allow checking against similar errors from multiple sources easily, for example different `FILE_NOT_FOUND` errors from different platforms.
 
-In this post, I will summarize the components and best practices for using error codes in C++. This blog referenced [the blog post series](http://blog.think-async.com/2010/04/system-error-support-in-c0x-part-1.html) by Christopher Kohlhoff who evolves the design. You might also want to have a look for for more details about its design.
+In this post, I will start from the traditional C-style `errno` mechanism, and then introduce the new error code system by how it fixes some of the pain points of `errno`.
 
-## What's in the `<system_error>` bundle?
+I will summarize the components and rationale of the error code system introduced in C++11, and provide some good practices for using it. This blog post referenced [the blog post series](http://blog.think-async.com/2010/04/system-error-support-in-c0x-part-1.html) by Christopher Kohlhoff who evolves the design. You might also want to give it a look for more details about its design.
 
-All the components of error code are shipped inside the `<system_error>` header. I will classify them into four groups, considering the expected usage of them. I will introduce them in the following sections.
+## Extending the `errno`
 
-- `error_category`, `error_code`, `error_condition` and `system_error`: These are the core components that defines the errors.
-- `make_error_code` and `make_error_condition`: standard way of creating error code and error conditions.
-- `generic_category` and `system_category`: These are the standard error categories defined by the C++ standard.
-- `is_error_code_enum`, `is_error_condition_enum`, : These are the helpers trait types that error code providers need to implement, and users don't need to care about.
+As some background knowledge, the traditional C-style error handling mechanism is done through the `errno` variable. It is a thread-local variable of type `int` that is set by system calls and some library functions to indicate the type of error that occurred. The value of `errno` is the error code number. You can use `strerror(errno)` to get a string representation of the error, or use `perror(const char *)` to print the error message to the standard error stream.
 
-## The Core Components
+This system is very simple and lightweight, but as something that is built in back in the C89 days, it has some limitations that make it far from ideal in modern C++ programs.
 
-The `std::error_code` and `std::error_condition` are the core components that defines the errors. Both of them share a very similar interface, and mainly differ in their semantic meanings. `std::error_code` is the type to be returned from operations representing a concrete error. `std::error_condition` is used to represent errors in a more generic way, for example, it can represent all the `ENOENT` errors from different platforms. It is mostly used for end users to check against.
+The first issue is that `errno` is a thread-local variable, therefore accessing it requires accessing thread-local storage, which is not very efficient. It also hides the error from the interface, so the user has no way to figure out if a function may cause an error. It also requires the return value of the function to provide an invalid value to indicate an error, and notify the user to check the `errno` value, which is not very clean, and not always possible.
 
-The two types both use a simple int number to represent the underlying error, following the tradition of `errno` and many other error number representation, which use 0 for success and other values for errors.
+This is actually easy to fix. We can just replace the global `errno` variable with a local variable in the function, and return the error code to the caller. The caller can then check if the error code is non-zero to determine if an error occurred. Here's what our error code type looks like:
 
-To allow errors from different sources being used together without any conflict, an extra identifier is used to distinguish them. This is where the `error_category` comes in. `std::error_category` itself is an abstract class, and you need to implement your own concrete class by inheriting from it if you want to define your own error codes.
+```cpp
+typedef int error_code;
 
-`std::system_error` is an exception type, which is used to wrap the error codes and throw them as exceptions. With this type, you can simply throw an exception from an `error_code` object at any boundary where you prefer to expose an exception.
+result my_function(const args& arg, error_code& ec) {
+    if (arg.is_valid()) {
+        ec = 0; // Success
+        return arg.get_result();
+    }
+    ec = EINVAL;
+    return {};
+}
+```
+
+Note that we are following the convention of using `0` to represent success, and non-zero values to represent errors, which can simplify the error checking code.
+
+The second issue is extensibility. `errno` is a simple `int` variable, thus it is impossible to distinguish errors from different sources. Defining your own error code is possible, but it is impossible to avoid conflicts with errors from other libraries, or distinguish errors from different sources at the user's side. Also the error message is wrapped inside the `strerror` function, and we cannot add error messages to it. The workaround is to define your own error code and error messages in a separate variable, but that requires the user to remember every library's custom error code variable, which is definitely not a good user experience. To make it worse, since every one runs their own `errno`-like variable, it is not standardized, so the user interface might vary from library to library.
+
+So, let's start creating an improved error handling mechanism that is more extensible. We know a single `int` value is not enough, we need to add some more information to it. A simple way is to add a "namespace" marker to it, for example, by attaching a string or a number to identify the source of the error. This is generally doable, but we still have to avoid name conflicts for namespaces, but come up with a universally unique name for each library is still hard to promise. One can use longer identifiers including more information to lower the chance of conflicts, but first there's still a chance of conflicts, and second the identifiers needs to be compared at runtime, which is very inefficient. 
+
+The error code mechanism figured out a better way to do this. Instead of using a hand written namespace marker, it uses the address of a tag object. Each sources defines its custom tag object, and because C++ guarantees that different objects have different addresses, we can use the address of the tag object as the namespace marker. This way we can ensure the uniqueness of the namespace marker, and the comparison can be done by only comparing the pointer, which is much more efficient. The type of the tag object is called `error_category`. Adding it to our error code type, we get the following:
+
+```cpp
+class error_category {};
+
+class error_code {
+    int value;
+    const error_category* category;
+};
+
+class my_error_category : public error_category {};
+
+const error_category& get_my_error_category() {
+    static my_error_category instance;
+    return instance;
+}
+
+result my_function(const args& arg, error_code& ec) {
+    if (arg.is_valid()) {
+        ec = {0, get_my_error_category()}; // Success
+        return arg.get_result();
+    }
+    ec = {EINVAL, get_my_error_category()}; // Error
+    return {};
+}
+```
+
+This allows any source provider to extend the error code system easily, but we still need an extensible alternative for the `strerror` function. Since we already have a separated `error_category` object for each error family, we can add methods to the `error_category` to map error code to their corresponding error message, so each source can define its own `error_category` type, create a static instance of it, and the user can call it when needed. The `<system_error>`'s mechanism includes two of such functions: `error_category::message()` and `error_category::message()`. It looks like this:
+
+```cpp
+class error_category {
+public:
+    virtual const char* name() const = 0;
+    virtual const char* message(int ev) const = 0;
+};
+
+class my_error_category : public error_category {
+public:
+    virtual const char* name() const override { return "my"; }
+    virtual const char* message(int ev) const override {
+        switch (ev) {
+            case 0: return "Success";
+            case EINVAL: return "Invalid argument";
+        }
+        return "Unknown error";
+    }
+};
+
+const error_category& get_my_error_category() {
+    static my_error_category instance;
+    return instance;
+}
+
+/* Everything else unchanged */
+```
+
+and at the user side, we can use the `name()` and `message()` method to get the error message:
+
+```cpp
+error_code ec = my_function(arg);
+if (ec.value() != 0) {
+    std::cout << ec.category().name() << ": " << ec.category().message(ec.value()) << std::endl;
+}
+```
+
+## More on user experience
+
+Now we have a working error code system. But let's take a step back and think about the user experience. There are three roles involved: the developer who defines a source, the developer who reports the error code, and the end user who checks against the error code.
+
+For the developer who defines a source, they need to define a `error_category` type, and provide a static instance of it.
+
+## Error Comparison is Not That Simple
+
+## Some Best Practices
