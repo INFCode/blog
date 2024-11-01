@@ -82,8 +82,8 @@ public:
         switch (ev) {
             case 0: return "Success";
             case EINVAL: return "Invalid argument";
+            default: return "Unknown error";
         }
-        return "Unknown error";
     }
 };
 
@@ -109,6 +109,20 @@ if (ec.value() != 0) {
 Now we have a working error code system. But let's take a step back and think about the user experience. There are three roles involved: the developer who defines a source, the developer who reports the error code, and the end user who checks against the error code.
 
 For the developer who defines a source, they need to define a `error_category` type, and provide a static instance of it.
+
+For the developer who reports the error code, they need to create an `error_code` object, and pass it to the function. Manually creating it is long and error-prone, as one may accidentally use the wrong `error_category`, resulting in a wrong error code (remember that the error code can replicate between different sources representing different errors). This is hard to debug, as we usually name the error number as the error it represents under the category it is defined for, and typos like `std::error_code{DIVIDE_BY_ZERO, io_category()}` looks valid unless you look closely. What makes it worse is that the compiler won't complain about it, and the program compiles and runs, but with wrong error code.
+
+So you may want to combine the error number only to one specific category that it is defined for.
+
+And at last, the end user needs to check against the error code. The first thing they might need is to check if there's an error at all. This is done by checking if the error code is non-zero. We can use a overloaded operator to make this check easier:
+
+```cpp
+explicit operator bool() const {
+    return value != 0;
+}
+```
+
+Another thing the end user might want to do is to check which error occurs.
 
 ## Error Comparison is Not That Simple
 
