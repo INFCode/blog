@@ -6,7 +6,7 @@ draft = true
 
 In this blog post, I’ll guide you through a journey to understand how the **Curiously Recurring Template Pattern (CRTP)** is connected to the **Strategy Pattern**. We’ll start with the classic Strategy Pattern, modify it step by step, and ultimately uncover how CRTP emerges as its compile-time variant. Each step is only a small modification to the previous version, so you can follow along easily.
 
-> Note: This blog post is not about CRTP itself. If you are not familiar with CRTP and its benefits, I recommend reading [my previous post]() first.
+> Note: This blog post is not about CRTP itself. If you are not familiar with CRTP and its benefits, I recommend reading [my previous post]({{< ref "posts/crtp.md" >}}) first.
 
 ## The Plan of Attack
 
